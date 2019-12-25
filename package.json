@@ -1,0 +1,29 @@
+{
+  "name": "rxjs_doc_translation",
+  "version": "0.1.0",
+  "description": "rxjs official document translation",
+  "main": "index.js",
+  "directories": {
+    "doc": "doc"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BuBuHighLighter/rxjs_doc_translation.git"
+  },
+  "keywords": [
+    "document",
+    "translation"
+  ],
+  "author": "fd",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/BuBuHighLighter/rxjs_doc_translation/issues"
+  },
+  "homepage": "https://github.com/BuBuHighLighter/rxjs_doc_translation#readme",
+  "dependencies": {
+    "rxjs": "^6.5.3"
+  }
+}
