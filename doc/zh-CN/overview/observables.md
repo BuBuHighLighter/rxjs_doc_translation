@@ -1,4 +1,4 @@
-# Observable
+# 第一部分——Observable
 
 可观察对象是多值惰性Push集合(原文: Observables are lazy Push collections of multiple values)。它们填补了下表中的缺失点:
 
@@ -59,7 +59,7 @@ got value 4
 done
 ```
 
-## Pull(拉)与Push(推)
+## 一、Pull(拉)与Push(推)
 
 *Pull*与*Push*是两种不同的协议，它们描述了数据生产者如何与数据使用者通信。
 
@@ -85,7 +85,7 @@ RxJS引入了`Observables`，这是一个用于JavaScript的新Push系统。 一
 - Promise是一种最终可能会（也可能不会）返回单个值的计算。（原文: A Promise is a computation that may (or may not) eventually return a single value.）
 - Observable是一种延迟计算，从调用开始起，它可以同步或异步地返回从零到（潜在的）无限个值。
 
-## Observables作为一般函数
+## 二、Observables作为一般函数
 
 (标题原文: Observables as generalizations of functions)
 
@@ -119,6 +119,7 @@ console.log(y);
 
 您可以使用Observables编写与上面相同的行为:
 
+[代码示例](../../../demos/overview/observable/demo3/index.ts)
 ```ts
 import { Observable } from 'rxjs';
  
@@ -134,3 +135,171 @@ foo.subscribe(y => {
   console.log(y);
 });
 ```
+
+输出是一样的:
+
+```bash
+"Hello"
+42
+"Hello"
+42
+```
+
+产生这种结果是因为函数和Observables都是惰性计算。如果不调用该函数，则`console.log('Hello')`不会执行。 同样在Observables中，如果您不“调用”它（使用`subscribe`），则`console.log('Hello')`不会执行。 另外，“调用(calling)”或“订阅(subscribing)”是一个独立的操作：两个函数调用触发两个单独的副作用，两个Observable订阅触发两个单独的副作用。 与EventEmitters具有副作用并且不管订阅者的存在如何都渴望执行相比，Observables没有共享执行并且很懒。
+
+> 订阅(subscribing)一个`Observable`类似于调用一个Function。
+
+有人声称Observable是异步的，那是不对的。如果在函数调用中打印日志，如下所示：
+
+```ts
+console.log('before');
+console.log(foo.call());
+console.log('after');
+```
+
+你会看到这样的输出:
+
+```bash
+"before"
+"Hello"
+42
+"after"
+```
+
+使用Observables实现与上面相同功能:
+
+[代码示例](../../../demos/overview/observable/demo4/index.ts)
+```ts
+console.log('before');
+foo.subscribe(x => {
+  console.log(x);
+});
+console.log('after');
+```
+
+输出是这样:
+
+```bash
+"before"
+"Hello"
+42
+"after"
+```
+
+这证明foo的订阅是完全同步的，就像一个函数一样。
+
+> Observables能够同步或异步传递值。
+
+一个Observable和一个函数有什么区别？ 观察对象可以随着时间的推移“返回”多个值，而某些函数则无法实现。例如，您不能这样做：
+
+```ts
+function foo() {
+  console.log('Hello');
+  return 42;
+  return 100; // dead code. will never happen
+}
+```
+
+函数只能返回一个值。但是，Observables可以做到这一点：
+
+[代码示例](../../../demos/overview/observable/demo5/index.ts)
+```ts
+import { Observable } from 'rxjs';
+ 
+const foo = new Observable(subscriber => {
+  console.log('Hello');
+  subscriber.next(42);
+  subscriber.next(100); // "return" another value
+  subscriber.next(200); // "return" yet another
+});
+ 
+console.log('before');
+foo.subscribe(x => {
+  console.log(x);
+});
+console.log('after');
+```
+
+同步输出:
+
+```bash
+"before"
+"Hello"
+42
+100
+200
+"after"
+```
+
+而且您也可以“异步”返回值:
+
+[代码示例](../../../demos/overview/observable/demo6/index.ts)
+```ts
+import { Observable } from 'rxjs';
+ 
+const foo = new Observable(subscriber => {
+  console.log('Hello');
+  subscriber.next(42);
+  subscriber.next(100);
+  subscriber.next(200);
+  setTimeout(() => {
+    subscriber.next(300); // happens asynchronously
+  }, 1000);
+});
+ 
+console.log('before');
+foo.subscribe(x => {
+  console.log(x);
+});
+console.log('after');
+```
+
+会输出:
+
+```bash
+"before"
+"Hello"
+42
+100
+200
+"after"
+300
+```
+
+**结论:**
+
+- `func.call()`意思是“同步给我一个值”
+- `observable.subscribe()`意思是“给我任何数量的值，无论是同步还是异步”
+
+## 三、剖析一个Observable
+
+Observables使用`new Observable`或者一个创建Observable的操作符来进行创建。可以使用一个`Observer`进行订阅，执行Observable以便将`next`、`error`、`complete`通知传递给`Observer`，并且他们的执行是对外可见的。（原文：Observables are created using new Observable or a creation operator, are subscribed to with an Observer, execute to deliver next / error / complete notifications to the Observer, and their execution may be disposed.）
+
+这四个方面都在`Observable`实例中进行编码，但是其中一些方面与其他类型（如Observer和Subscription）有关。
+
+Observable的核心关系:
+
+- 创建Observables
+- 订阅Observables
+- 执行Observables
+- 处理Observables
+
+### 3.1 创建Observables
+
+`Observable`构造函数接收一个参数：subscribe(订阅)函数。
+
+下面的示例创建一个Observable，以每秒向订阅者发出字符串“hi”。
+
+```ts
+import { Observable } from 'rxjs';
+
+const observable = new Observable(function subscribe(subscriber) {
+  const id = setInterval(() => {
+    subscriber.next('hi')
+  }, 1000);
+});
+```
+
+> Observables可以使用`new Observable`创建。通常，Observables使用创建函数创建，例如`of`、`from`、`interval`等。
+
+在上面的示例中，subscribe(订阅)函数是描述Observable的最重要部分。现在让我们看看订阅的含义。
