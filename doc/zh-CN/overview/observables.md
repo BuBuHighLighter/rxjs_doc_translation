@@ -303,3 +303,25 @@ const observable = new Observable(function subscribe(subscriber) {
 > Observables可以使用`new Observable`创建。通常，Observables使用创建函数创建，例如`of`、`from`、`interval`等。
 
 在上面的示例中，subscribe(订阅)函数是描述Observable的最重要部分。现在让我们看看订阅的含义。
+
+### 3.2 订阅Observables
+
+可以订阅示例中的`Observable`，如下所示：
+
+```ts
+observable.subscribe(x => console.log(x));
+```
+
+`observable.subscribe`和`subscribe`在`new Observable(function subscribe(subscriber) {...})`中具有相同名字并不是巧合。（原文：It is not a coincidence that observable.subscribe and subscribe in new Observable(function subscribe(subscriber) {...}) have the same name.）
+
+在库中，它们是不同的，但是出于实际目的，您可以在概念上将它们视为相等。
+
+这显示了如何在同一可观察对象的多个观察者之间不共享订阅调用。（原文：This shows how subscribe calls are not shared among multiple Observers of the same Observable.）
+
+当使用`Observer`调用`observable.subscribe`时，`new Observable(function subscribe(subscriber) {...})`中的`subscribe`函数为给定的订阅者运行。每次对`observable.subscribe`的调用都会为给定的订阅者触发自己的独立设置。【原文： When calling observable.subscribe with an Observer, the function subscribe in new Observable(function subscribe(subscriber) {...}) is run for that given subscriber. Each call to observable.subscribe triggers its own independent setup for that given subscriber.】
+
+> 订阅Observable就像调用一个函数，提供传递数据的回调函数。
+
+这与事件处理程序API（例如`addEventListener`/`removeEventListener`）完全不同。`使用observable.subscribe`，给定的Observer不会在Observable中注册为一个侦听器。Observable甚至不会为隶属于其的Observers维护一个列表。
+
+调用`subscribe`只是启动“执行Observable”并将值或事件传递给该执行的观察者（Observer）的一种方式。
