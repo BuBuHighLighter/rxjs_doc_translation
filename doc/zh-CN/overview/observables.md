@@ -325,3 +325,130 @@ observable.subscribe(x => console.log(x));
 这与事件处理程序API（例如`addEventListener`/`removeEventListener`）完全不同。`使用observable.subscribe`，给定的Observer不会在Observable中注册为一个侦听器。Observable甚至不会为隶属于其的Observers维护一个列表。
 
 调用`subscribe`只是启动“执行Observable”并将值或事件传递给该执行的观察者（Observer）的一种方式。
+
+### 3.3 执行Observables
+
+在`new Observable(function subscribe(subscriber) {...})`中的代码表示“执行Observable”，这是一种惰性计算，仅对每个订阅的Observer发生。执行会随时间推移同步或异步地生成多个值。
+
+执行Observable可以提供三种类型的值：
+
+- “Next”通知：发送一个值，例如数字（number）、字符串（string）、对象（object）等等。
+- “Error”通知：发送一个JavaScript Error或一个exception。
+- “Complete”通知：不发送值。
+
+“Next”通知是最重要也是最频繁使用的一类：它们代表正在交付给订阅者的实际数据。“Error”和“Complete”通知在Observable执行的过程中可能只发生一次，而且只能是其中之一发生。
+
+这些约束作为正则表达式编写可以在所谓的Observable语法或契约中最好得体现出来。【原文：These constraints are expressed best in the so-called Observable Grammar or Contract, written as a regular expression】
+
+```ts
+next*(error|complete)?
+```
+
+> 在Observable的执行中，可能会传递零到无限个Next通知。一旦有传递了错误（Error）或完成（Complete）通知，则此后将无法传递其他任何东西。
+
+以下是Observable执行的示例，该示例传递三个Next通知，然后完成：
+
+```ts
+import { Observable } from 'rxjs';
+
+const observable = new Observable(function subscribe(subscriber) {
+  subscriber.next(1);
+  subscriber.next(2);
+  subscriber.next(3);
+  subscriber.complete();
+});
+```
+
+Observable严格遵守Observable Contract，因此以下代码不会传递Next通知4：
+
+```ts
+import { Observable } from 'rxjs';
+
+const observable = new Observable(function subscribe(subscriber) {
+  subscriber.next(1);
+  subscriber.next(2);
+  subscriber.next(3);
+  subscriber.complete();
+  subscriber.next(4); // 不会通知，因为违法了约定
+});
+```
+
+最好将在`subscribe`中的任何代码包装在`try`/`catch`中，如果捕获到异常，它将发出错误通知：
+
+```ts
+import { Observable } from 'rxjs';
+ 
+const observable = new Observable(function subscribe(subscriber) {
+  try {
+    subscriber.next(1);
+    subscriber.next(2);
+    subscriber.next(3);
+    subscriber.complete();
+  } catch (err) {
+    subscriber.error(err); // 一旦捕获错误就发出错误通知
+  }
+});
+```
+
+### 3.4 处理Observable的执行
+
+因为Observable的执行可能是无限的，并且Observer（观察者）想在有限的时间内终止执行是很常见的，所以我们需要一个API来取消执行。由于每次执行仅对一个Observer专有，因此一旦Observer完成接收值，它就必须有一种停止执行的方式，以避免浪费计算能力或内存资源。
+
+当调用`observable.subscribe`时，Observer将关联到新创建的Observable执行中。 此调用还返回一个对象，即`Subscription`：
+
+```ts
+const subscription = observable.subscribe(x => console.log(x));
+```
+
+Subscription表示正在进行的执行，并且具有最小的API，可让您取消该执行。点击此处阅读更多关于[订阅类型](#)的信息。使用`subscription.unsubscribe()`可以取消正在进行的执行：
+
+```ts
+import { from } from 'rxjs';
+
+const observable = from([10, 20, 30]);
+const subscription = observable.subscribe(x => console.log(x));
+// Later:
+subscription.unsubscribe();
+```
+
+> 订阅后，您将获得一个*Subscription*，代表正在进行的执行。只需调用*unsubscribe()*即可取消执行。
+
+当我们使用`create()`创建Observable时，每个Observable必须定义如何处置该执行的Observable的资源。您可以通过从subscribe()函数中返回一个自定义的`unsubscribe`函数来实现。
+
+例如，这是我们使用setInterval清除间隔执行集的方式：
+
+```ts
+const observable = new Observable(function subscribe(subscriber) {
+  // 跟踪间隔资源
+  const intervalId = setInterval(() => {
+    subscriber.next('hi');
+  }, 1000);
+
+  // 提供一种取消和配置间隔资源的方法
+  return function unsubscribe() {
+    clearInterval(intervalId);
+  };
+});
+```
+
+就像`observable.subscribe`类似于`new Observable(function subscribe() {...})`那样，我们从subscription返回的`unsubscribe`在概念上也等于`subscription.unsubscribe`。实际上，如果删除围绕这些概念的ReactiveX类型，则会剩下相当简单的JavaScript。
+
+```ts
+function subscribe(subscriber) {
+  const intervalId = setInterval(() => {
+    subscriber.next('hi');
+  }, 1000);
+ 
+  return function unsubscribe() {
+    clearInterval(intervalId);
+  };
+}
+ 
+const unsubscribe = subscribe({next: (x) => console.log(x)});
+ 
+// Later:
+unsubscribe(); // 处置资源
+```
+
+之所以使用诸如Observable，Observer和Subscription之类的Rx类型，是为了获得与运算符的安全性（例如Observable Contract）和可组合性。
+
